@@ -2,6 +2,11 @@
 *.zip
 imessage-forensic-toolkit-LATEST.zip
 
+# macOS .app bundle built by scripts/build_signed_app.sh
+*.app/
+*.app.zip
+*.dmg
+
 # Python
 __pycache__/
 *.pyc

@@ -12,6 +12,19 @@ echo ""
 echo "  iMessage Forensic Recovery v10.0 (build 2026-06-20)"
 echo ""
 
+# ── Self-heal when launched as a real file (double-click path) ────────────────
+# If we were started from an actual file on disk (not piped via `curl | bash`),
+# clear the Gatekeeper quarantine flag and ensure the execute bit is set, so
+# subsequent double-clicks are smoother. On the FIRST run Gatekeeper has already
+# been satisfied by the time this code runs, so this only smooths re-launches.
+# Under `curl | bash` BASH_SOURCE is unset and $0 is "bash" (not a file), so the
+# guard below is false and nothing happens.
+_SELF="${BASH_SOURCE[0]:-$0}"
+if [ -f "$_SELF" ]; then
+    xattr -d com.apple.quarantine "$_SELF" 2>/dev/null || true
+    [ -x "$_SELF" ] || chmod +x "$_SELF" 2>/dev/null || true
+fi
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 # Escape backslash then double-quote so untrusted text (e.g. folder names) can be
@@ -179,13 +192,72 @@ echo "  Selected: $MODE"
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 2.5 Resolve Python 3 — install nothing unless there is no usable interpreter
+# ─────────────────────────────────────────────────────────────────────────────
+# Most Macs already have a working python3 (Xcode Command Line Tools, Homebrew,
+# or a python.org install). When that's true we use it as-is and DON'T touch
+# Homebrew at all — installing Homebrew triggers a sudo password prompt and a
+# multi-GB Xcode download, which is the single biggest first-run obstacle for a
+# non-technical user. Homebrew is a last resort, only when no interpreter exists.
+
+# Pick up an already-installed Homebrew so its python3 is on PATH (no install).
+for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    [ -x "$_brew" ] && eval "$("$_brew" shellenv)" && break
+done
+
+usable_python() {   # prints the path of a working python3 >= 3.9, else nothing
+    local cand
+    for cand in "$(command -v python3 2>/dev/null)" \
+                /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+        [ -n "$cand" ] && [ -x "$cand" ] || continue
+        if "$cand" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)' 2>/dev/null; then
+            printf '%s' "$cand"; return 0
+        fi
+    done
+    return 1
+}
+
+PYTHON="$(usable_python || true)"
+
+if [ -z "$PYTHON" ]; then
+    alert "One-Time Setup Required
+
+This tool needs Python 3 to run. The free Homebrew installer will set it up
+(about 3 minutes, one time only).
+
+The Terminal window may show activity in the background — that is normal.
+Click OK to start, then wait for the next dialog." "note"
+    if ! command -v brew &>/dev/null; then
+        notify "Installing Homebrew — one-time setup, ~3 minutes..."
+        echo "[*] Installing Homebrew..."
+        NONINTERACTIVE=1 /bin/bash -c \
+            "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>&1
+        for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+            [ -x "$_brew" ] && eval "$("$_brew" shellenv)" && break
+        done
+    fi
+    notify "Installing Python 3..."
+    echo "[*] Installing Python 3..."
+    brew install python --quiet 2>&1
+    PYTHON="$(usable_python || true)"
+fi
+
+if [ -z "$PYTHON" ]; then
+    alert "Could not find or install Python 3.
+
+Please install Python 3 from python.org, then run this tool again." "stop"
+    exit 1
+fi
+echo "[*] Using Python: $PYTHON"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 3. Full Disk Access — only required for Fresh Extraction
 # ─────────────────────────────────────────────────────────────────────────────
 
 CHAT_DB="$HOME/Library/Messages/chat.db"
 
 check_fda() {
-    python3 -c "open('$CHAT_DB','rb').read(1)" >/dev/null 2>&1
+    "$PYTHON" -c "open('$CHAT_DB','rb').read(1)" >/dev/null 2>&1
 }
 
 if [[ "$MODE" == *"Fresh Extraction"* ]]; then
@@ -230,7 +302,7 @@ Applications/Utilities." \
     fi
 
     # MDM block check
-    if ! python3 -c "
+    if ! "$PYTHON" -c "
 import sqlite3
 c=sqlite3.connect('file:$CHAT_DB?mode=ro&immutable=1',uri=True)
 c.execute('SELECT count(*) FROM message').fetchone()
@@ -266,30 +338,10 @@ Please complete these steps first:
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Homebrew + Python + venv  (all modes)
+# 4. Python virtual environment + packages  (all modes)
 # ─────────────────────────────────────────────────────────────────────────────
-
-if ! command -v brew &>/dev/null; then
-    alert "One-Time Setup Required
-
-This tool needs to install free software (Homebrew + Python 3).
-This takes about 3 minutes and only happens once.
-
-The Terminal window may show activity in the background — that is normal.
-Click OK to start, then wait for the next dialog." "note"
-    notify "Installing Homebrew — one-time setup, ~3 minutes..."
-    echo "[*] Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c \
-        "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>&1
-fi
-[ -f "/opt/homebrew/bin/brew" ] && eval "$(/opt/homebrew/bin/brew shellenv)"
-
-PYTHON="$(command -v python3 2>/dev/null)"
-if [ -z "$PYTHON" ] || ! "$PYTHON" -c "import sys; assert sys.version_info>=(3,9)" 2>/dev/null; then
-    notify "Installing Python 3..."
-    brew install python --quiet 2>&1
-    PYTHON="$(command -v python3)"
-fi
+# Python itself was already resolved in section 2.5. Here we build an isolated
+# venv for this tool's packages so we never modify the system site-packages.
 
 ENV_DIR="$HOME/.imessage_forensic_sandbox"
 _TOOL_VERSION="10.0"

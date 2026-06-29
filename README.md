@@ -2,7 +2,27 @@
 
 A self-contained Mac tool that extracts, analyzes, and presents your iMessage
 history — including messages that may have been deleted — in a searchable HTML
-report. Double-click to run. No coding required.
+report. No coding required.
+
+---
+
+## ⚡ Quick Start (one line, no install)
+
+Open **Terminal** (press ⌘ + Space, type `Terminal`, press Return), then paste
+this one line and press Return:
+
+```
+curl -fsSL https://raw.githubusercontent.com/flywifi/whoshe/main/imessage_ultimate_launcher.command | bash
+```
+
+That's it — the tool starts and guides you with native macOS dialogs from there.
+
+**Why a Terminal line instead of double-clicking?** On macOS 15 Sequoia, Apple
+removed the right-click → Open shortcut, so double-clicking an unsigned tool
+forces you through several System Settings screens to approve it. The line above
+skips all of that: nothing is downloaded as a blocked file, so there is no
+Gatekeeper warning, no `chmod`, and no "unidentified developer" dialog. See
+[Installation](#3-installation--first-launch) for the double-click alternative.
 
 ---
 
@@ -54,44 +74,52 @@ it needs automatically on first run.
 
 ## 3. Installation — First Launch
 
-### Step 1 — Download
+There are two ways to launch the tool. **The one-line method (A) is strongly
+recommended** — it is fewer steps and avoids every macOS security roadblock.
 
-Download `imessage_ultimate_launcher.command` and save it anywhere (your Desktop
-is fine).
-
-### Step 2 — Unlock the file (one-time, ~30 seconds)
-
-macOS blocks files downloaded from the internet and also requires them to be
-marked executable before they can run. Two Terminal commands handle both at once.
+### Option A — One line in Terminal (recommended)
 
 1. Press **⌘ + Space**, type `Terminal`, press **Return**
-2. Copy and paste the following line into Terminal, then press **Return**:
+2. Paste this line and press **Return**:
 
 ```
-chmod +x ~/Downloads/imessage_ultimate_launcher.command && xattr -d com.apple.quarantine ~/Downloads/imessage_ultimate_launcher.command
+curl -fsSL https://raw.githubusercontent.com/flywifi/whoshe/main/imessage_ultimate_launcher.command | bash
 ```
 
-> **File not in Downloads?** Drag the file from Finder into the Terminal window
-> instead of typing the path — Terminal will fill in the correct path for you.
-> Then add `chmod +x ` before it and ` && xattr -d com.apple.quarantine ` after,
-> or run each command separately.
+Nothing else to download, unlock, or unblock. The tool runs immediately and
+guides you with dialogs. This works because content fetched with `curl` is never
+flagged by Gatekeeper, so there is no "unidentified developer" warning.
 
-3. Double-click `imessage_ultimate_launcher.command` — it will run.
+### Option B — Download and double-click
 
-You only need to do this once. After that, double-clicking works directly.
+If you prefer a file you can double-click:
 
-> **macOS 15 Sequoia note:** The old right-click → Open shortcut was removed in
-> macOS 15. If you see a warning and clicking Open does nothing, use the Terminal
-> commands above — they bypass Gatekeeper entirely and are simpler.
+1. Download `imessage_ultimate_launcher.command` and save it anywhere (Desktop is fine).
+2. **Unlock it once.** macOS quarantines files downloaded from the internet and
+   needs them marked executable. Open Terminal and paste (drag the file into the
+   Terminal window to fill in its path if it isn't in Downloads):
 
-### Step 3 — First-Time Software Install (~3 minutes)
+   ```
+   chmod +x ~/Downloads/imessage_ultimate_launcher.command && xattr -d com.apple.quarantine ~/Downloads/imessage_ultimate_launcher.command
+   ```
 
-On the very first run, the tool will ask to install **Homebrew** and **Python 3**
-(free, open-source software). A dialog will appear before anything installs —
-click OK to proceed. The Terminal window will show activity in the background
-while it installs.
+3. Double-click `imessage_ultimate_launcher.command` — it runs. Future
+   double-clicks work directly.
 
-This only happens once. Future runs skip directly to extraction.
+> **macOS 15 Sequoia note:** Apple removed the old right-click → Open shortcut.
+> If a double-clicked file is blocked and "Open" does nothing, the `chmod` +
+> `xattr` line above clears it — or just use **Option A**, which never hits this.
+
+> **Want a true zero-warning double-click?** A signed, notarized `.app` can be
+> built (requires an Apple Developer account). See
+> [`scripts/RELEASING.md`](scripts/RELEASING.md).
+
+### First-Time Software Install (~3 minutes, only if needed)
+
+If your Mac already has Python 3 (most do), the tool starts right away. Only if
+no Python 3 is found will it offer a one-time install of **Homebrew + Python 3**
+(free, open-source) — a dialog appears first; click OK and wait. This happens at
+most once; future runs skip straight to extraction.
 
 ---
 
@@ -309,9 +337,29 @@ automatically when it finishes.
 
 ### "The tool seemed to freeze for several minutes after I clicked OK."
 
-This is normal on the first run. The tool is installing Homebrew and Python 3,
-which takes 2-5 minutes depending on your internet speed. The Terminal window
+This is normal on a first run that needs setup. If your Mac had no Python 3, the
+tool is installing Homebrew and Python 3 (2-5 minutes, depending on your internet
+speed); otherwise it is just preparing its Python packages. The Terminal window
 will show progress. Wait for the next dialog to appear.
+
+### "It won't open — 'unidentified developer' / 'Apple could not verify it is free of malware'."
+
+This is macOS Gatekeeper blocking an unsigned downloaded file, and on macOS 15
+Sequoia the old right-click → Open shortcut no longer works. **Easiest fix: don't
+download the file at all — use the one-line Terminal command in
+[Quick Start](#-quick-start-one-line-no-install).** Content fetched with `curl`
+is never quarantined, so Gatekeeper never gets involved.
+
+If you'd rather keep the downloaded file, run the `chmod` + `xattr` line in
+[Option B](#option-b--download-and-double-click) to clear the quarantine flag,
+then double-click again.
+
+### "I double-clicked it and it opened in TextEdit (or said 'permission denied')."
+
+The file lost its executable bit (common after downloading or transferring from
+Windows). Either use the [one-line command](#-quick-start-one-line-no-install)
+(no executable bit needed), or run the `chmod +x …` part of the
+[Option B](#option-b--download-and-double-click) command.
 
 ### "It says Terminal needs Full Disk Access. I don't see Terminal in the list."
 
