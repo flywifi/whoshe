@@ -553,7 +553,25 @@ file in `$HOME` and invokes them via `python3`:
 
 The same five modules also exist as standalone CLI scripts
 (`core.py`, `cloudkit.py`, `parser.py`, `report.py`, `merge.py`) for
-command-line use and testing.
+command-line use and testing. All of these files live at the **root of this
+repository** alongside the launcher.
+
+Multi-platform support lives in the `extractors/` package, which is only used by
+the standalone CLI (the launcher heredocs run from a temp directory and cannot
+import it, so the attribution logic is inlined into the launcher's parser
+heredoc):
+
+| File | Purpose |
+|---|---|
+| `extractors/attribution.py` | Platform attribution engine — weighted regex scoring → per-platform confidence (0.40 threshold) |
+| `extractors/recursive_search.py` | iOS MobileSync `Manifest.db` scan for third-party app databases |
+| `extractors/signal_desktop.py` | Signal Desktop reader (marks records `ENCRYPTED`; never decrypts) |
+| `extractors/whatsapp_desktop.py` | WhatsApp Desktop reader |
+| `extractors/meta_import.py` | Instagram / Facebook Messenger data-export ZIP importer |
+| `extractors/snapchat_import.py` | Snapchat "My Data" ZIP importer |
+| `extractors/telegram_import.py` | Telegram export importer |
+| `extractors/google_messages_import.py` | Google Takeout Messages importer |
+| `extractors/normalize.py` | Normalize any platform schema → common columns |
 
 ### Two-Copy Architecture and Drift Guard
 
@@ -564,13 +582,23 @@ applied in both places. A drift guard enforces this:
 python3 sync_check.py
 ```
 
-This script asserts six security invariants across both copies:
-1. Formula-injection guard defined (`_FORMULA_PFX`, `def _safe`)
-2. Formula-injection guard applied (≥2 call sites of `_safe(`)
-3. SQLite table names SQL-quoted in CloudKit probe
-4. WAL carving has count + length caps
-5. Symlink artifacts logged
-6. Report ships CSP meta tag, FORENSIC BOUNDARY comment, sec-banner, and risk flags
+This script asserts ten invariants across both copies:
+
+| # | Invariant | Checked in |
+|---|---|---|
+| 1 | Formula-injection guard defined (`_FORMULA_PFX`, `def _safe`) | `core.py`, `parser.py`, `merge.py` + CORE/PARSER/REORG heredocs |
+| 2 | Formula-injection guard applied (≥2 call sites of `_safe(`) | same as #1 |
+| 3 | SQLite table names SQL-quoted in CloudKit probe | `core.py` + CORE heredoc |
+| 4 | WAL carving has count + length caps (`50_000`, `2_000`) | `core.py` + CORE heredoc |
+| 5 | Symlink artifacts logged (`is_symlink`) | `core.py` + CORE heredoc |
+| 6 | Report ships CSP + FORENSIC BOUNDARY comment + sec-banner + risk flags | `report.py` + REPORT heredoc |
+| 7 | WAL attribution engine present (threshold + `top_platform`) | `extractors/attribution.py` + PARSER heredoc |
+| 8 | Platform-organized report sections (`platform_section`) | `report.py` + REPORT heredoc |
+| 9 | Misc/unattributed tab for unclaimed fragments | `report.py` + REPORT heredoc |
+| 10 | Attribution confidence badge (`conf-badge`) in report | `report.py` + REPORT heredoc |
+
+Invariants 1–6 are the original security hardening; 7–10 were added with the
+platform-attribution feature.
 
 Exit code 0 = all pass. Exit code 1 = drift detected with a report showing which
 invariant failed in which file. Run this after every security-relevant change.
@@ -605,12 +633,50 @@ python3 report.py /path/to/output/parsed_output /path/to/output/cloudkit_classif
 python3 merge.py /path/to/device1 /path/to/device2 --output /path/to/merged
 ```
 
-### Branch and Sync Rules
+### Repository Layout
 
-Per `CLAUDE.md`: never push directly to `main`. Work on a feature branch and open
-a PR. The active development branch for this toolkit is
-`claude/imessage-forensic-toolkit-uuqa0w`.
+This is a standalone repository — every file lives at the root:
 
-Source of truth for the broader Antigravity Kit is `src/ui-ux-pro-max/`. The
-iMessage forensic toolkit lives in `tools/imessage-forensic/` as a separate
-sub-project.
+```
+.
+├── imessage_ultimate_launcher.command   # main entry point (bash + embedded Python), executable (100755)
+├── RESET.command                        # double-clickable cleanup helper, executable (100755)
+├── core.py                              # DB copy, CloudKit probe, WAL carving, exports
+├── cloudkit.py                          # CloudKit residual record probing
+├── parser.py                            # message parsing, tombstones, WAL cross-ref + attribution
+├── report.py                            # HTML report generation
+├── merge.py                             # unified timeline across sources
+├── sync_check.py                        # drift guard (see above)
+├── README.md
+└── extractors/                          # multi-platform readers/importers (standalone CLI only)
+```
+
+Both `.command` files must stay executable in git (mode `100755`) so they run
+when cloned on macOS. If you edit one on Windows the execute bit is dropped;
+restore it with:
+
+```bash
+git update-index --chmod=+x imessage_ultimate_launcher.command
+git update-index --chmod=+x RESET.command
+git ls-files --stage *.command   # expect 100755 on both
+```
+
+### Verifying a Change
+
+After any edit to analysis logic, run all of these from the repo root — all must
+be clean before delivering:
+
+```bash
+# 1. launcher bash is syntactically valid
+bash -n imessage_ultimate_launcher.command
+
+# 2. standalone modules parse
+python3 -c "import ast;[ast.parse(open(f).read()) for f in ['core.py','parser.py','report.py','merge.py','cloudkit.py','sync_check.py']];print('py OK')"
+
+# 3. the drift guard — must report all 10 invariants pass
+python3 sync_check.py
+```
+
+Remember the dual-copy rule: any change to logic in a standalone module MUST be
+mirrored in the corresponding launcher heredoc (and vice-versa), or `sync_check.py`
+will fail.

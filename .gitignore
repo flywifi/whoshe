@@ -1,0 +1,11 @@
+# Build artifacts — delivered to users as files, never committed
+*.zip
+imessage-forensic-toolkit-LATEST.zip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS cruft
+.DS_Store
