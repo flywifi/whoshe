@@ -663,20 +663,40 @@ git ls-files --stage *.command   # expect 100755 on both
 
 ### Verifying a Change
 
-After any edit to analysis logic, run all of these from the repo root — all must
-be clean before delivering:
+After any edit, run the full check suite from the repo root — it must be clean
+before you commit or deliver:
 
 ```bash
-# 1. launcher bash is syntactically valid
-bash -n imessage_ultimate_launcher.command
-
-# 2. standalone modules parse
-python3 -c "import ast;[ast.parse(open(f).read()) for f in ['core.py','parser.py','report.py','merge.py','cloudkit.py','sync_check.py']];print('py OK')"
-
-# 3. the drift guard — must report all 10 invariants pass
-python3 sync_check.py
+./verify.sh
 ```
+
+`verify.sh` runs, and aborts on the first failure of:
+
+1. `bash -n imessage_ultimate_launcher.command` — launcher bash is valid
+2. every embedded Python heredoc parses (`CORE/PARSER/REPORT/REORG/CK` markers)
+3. every standalone module parses (`core.py parser.py report.py merge.py cloudkit.py sync_check.py`)
+4. `python3 sync_check.py` — the drift guard (all 10 invariants present in both copies)
+
+It prints `ALL CHECKS PASSED` on success. Run it in the cloud env or on macOS;
+on Windows use git-bash.
 
 Remember the dual-copy rule: any change to logic in a standalone module MUST be
 mirrored in the corresponding launcher heredoc (and vice-versa), or `sync_check.py`
 will fail.
+
+### Building a Release
+
+To produce the distributable zip:
+
+```bash
+python3 build.py
+```
+
+This packages the git-tracked files (so `__pycache__/`, `*.pyc`, and `*.zip` are
+excluded automatically) into `imessage-forensic-toolkit-LATEST.zip`, setting the
+`.command` launchers to mode `0o100755` inside the archive so they stay
+double-clickable on macOS even when the zip is built from Windows. It then
+re-opens the archive and asserts those executable bits are correct.
+
+The resulting zip is a **deliverable only** — it is gitignored and must never be
+committed (you push the code; the zip is for distribution).
