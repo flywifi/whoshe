@@ -59,6 +59,11 @@ def _is_meta_zip(p: Path) -> bool:
         return False
 
 
+def detect(zip_path: Path) -> bool:
+    """Return True if zip_path is a Meta (Facebook/Instagram) data export."""
+    return _is_meta_zip(zip_path)
+
+
 def extract(zip_path: Path, out_dir: Path) -> list[dict]:
     """
     Parse a Meta data export ZIP and return normalized message rows.

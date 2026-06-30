@@ -84,6 +84,19 @@ def _load_data(source: Path) -> dict:
     return json.loads(source.read_text(encoding="utf-8"))
 
 
+def detect(zip_path: Path) -> bool:
+    """Return True if zip_path is a Telegram JSON export (contains result.json with 'chats' key)."""
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            names = zf.namelist()
+            if not any(n == "result.json" or n.endswith("/result.json") for n in names):
+                return False
+            data = json.loads(zf.read("result.json").decode("utf-8"))
+            return "chats" in data
+    except Exception:
+        return False
+
+
 def extract(source: Path, out_dir: Path) -> list[dict]:
     """
     Parse a Telegram export and return normalized rows.

@@ -54,6 +54,11 @@ def _is_snapchat_zip(p: Path) -> bool:
         return False
 
 
+def detect(zip_path: Path) -> bool:
+    """Return True if zip_path is a Snapchat 'My Data' export."""
+    return _is_snapchat_zip(zip_path)
+
+
 def extract(zip_path: Path, out_dir: Path) -> list[dict]:
     if not zipfile.is_zipfile(zip_path):
         raise ValueError(f"Not a ZIP: {zip_path}")

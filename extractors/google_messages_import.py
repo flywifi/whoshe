@@ -45,6 +45,11 @@ def _is_google_zip(p: Path) -> bool:
         return False
 
 
+def detect(zip_path: Path) -> bool:
+    """Return True if zip_path is a Google Messages Takeout export."""
+    return _is_google_zip(zip_path)
+
+
 def _parse_google_ts(s: str) -> str:
     """Parse 'Jan 5, 2023, 3:45:00 PM' style timestamps."""
     s = s.strip()

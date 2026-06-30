@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "repo": "whoshe",
+  "extractors": [
+    {
+      "id": "signal-desktop",
+      "label": "Signal Desktop Extractor",
+      "version": "1.0",
+      "path": "extractors/signal_desktop.py",
+      "interface": {
+        "detect": "detect() -> bool",
+        "extract": "extract(out_dir: Path) -> list[dict]"
+      },
+      "detect_mode": "auto",
+      "input": "local_db_path",
+      "output_schema": {
+        "platform": "string — 'Signal'",
+        "messages": "array — normalized message records",
+        "retrieved_at": "string — ISO timestamp"
+      },
+      "tags": ["signal", "e2ee", "desktop"]
+    },
+    {
+      "id": "whatsapp-desktop",
+      "label": "WhatsApp Desktop Extractor",
+      "version": "1.0",
+      "path": "extractors/whatsapp_desktop.py",
+      "interface": {
+        "detect": "detect() -> bool",
+        "extract": "extract(out_dir: Path) -> list[dict]"
+      },
+      "detect_mode": "auto",
+      "input": "local_db_path",
+      "output_schema": {
+        "platform": "string — 'WhatsApp'",
+        "messages": "array",
+        "retrieved_at": "string"
+      },
+      "tags": ["whatsapp", "meta", "desktop"]
+    },
+    {
+      "id": "telegram-import",
+      "label": "Telegram JSON Export Importer",
+      "version": "1.0",
+      "path": "extractors/telegram_import.py",
+      "interface": {
+        "detect": "detect(zip_path: Path) -> bool",
+        "extract": "extract(zip_path: Path, out_dir: Path) -> list[dict]"
+      },
+      "detect_mode": "file_provided",
+      "input": "user_export_zip",
+      "output_schema": {
+        "platform": "string — 'Telegram'",
+        "messages": "array",
+        "retrieved_at": "string"
+      },
+      "tags": ["telegram", "json-export", "import"]
+    },
+    {
+      "id": "meta-import",
+      "label": "Meta (Facebook/Instagram) Export Importer",
+      "version": "1.0",
+      "path": "extractors/meta_import.py",
+      "interface": {
+        "detect": "detect(zip_path: Path) -> bool",
+        "extract": "extract(zip_path: Path, out_dir: Path) -> list[dict]"
+      },
+      "detect_mode": "file_provided",
+      "input": "user_export_zip",
+      "output_schema": {
+        "platform": "string — 'Facebook' or 'Instagram'",
+        "messages": "array",
+        "retrieved_at": "string"
+      },
+      "tags": ["meta", "facebook", "instagram", "import"]
+    },
+    {
+      "id": "google-messages-import",
+      "label": "Google Messages Takeout Importer",
+      "version": "1.0",
+      "path": "extractors/google_messages_import.py",
+      "interface": {
+        "detect": "detect(zip_path: Path) -> bool",
+        "extract": "extract(zip_path: Path, out_dir: Path) -> list[dict]"
+      },
+      "detect_mode": "file_provided",
+      "input": "google_takeout_zip",
+      "output_schema": {
+        "platform": "string — 'Google Messages'",
+        "messages": "array",
+        "retrieved_at": "string"
+      },
+      "tags": ["google", "messages", "takeout", "import"]
+    },
+    {
+      "id": "snapchat-import",
+      "label": "Snapchat Data Export Importer",
+      "version": "1.0",
+      "path": "extractors/snapchat_import.py",
+      "interface": {
+        "detect": "detect(zip_path: Path) -> bool",
+        "extract": "extract(zip_path: Path, out_dir: Path) -> list[dict]"
+      },
+      "detect_mode": "file_provided",
+      "input": "user_export_zip",
+      "output_schema": {
+        "platform": "string — 'Snapchat'",
+        "messages": "array",
+        "retrieved_at": "string"
+      },
+      "tags": ["snapchat", "import"]
+    }
+  ]
+}
