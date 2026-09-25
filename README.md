@@ -6,28 +6,43 @@ report. No coding required.
 
 ---
 
-## ⚡ Quick Start (one line, no install)
+## Quick Start
 
 Open **Terminal** (press ⌘ + Space, type `Terminal`, press Return), then paste
-this one line and press Return:
+this line and press Return:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/flywifi/whoshe/main/imessage_ultimate_launcher.command | bash
 ```
 
-That's it — the tool starts and guides you with native macOS dialogs from there.
+The tool asks which mode you want (type a number and press Return; just press
+Return for a Fresh Extraction), then guides you with dialogs.
+
+The first run can include two one-time steps:
+
+1. **Python.** If your Mac doesn't have Python 3 yet, the tool asks Apple to
+   install its free "Command Line Developer Tools". You click **Install** in
+   Apple's window, and the download takes 5–30 minutes.
+2. **Full Disk Access.** For a Fresh Extraction you switch on Terminal in System
+   Settings so the tool can read your Messages
+   ([details](#4-granting-full-disk-access)).
 
 **Why a Terminal line instead of double-clicking?** On macOS 15 Sequoia, Apple
-removed the right-click → Open shortcut, so double-clicking an unsigned tool
-forces you through several System Settings screens to approve it. The line above
-skips all of that: nothing is downloaded as a blocked file, so there is no
-Gatekeeper warning, no `chmod`, and no "unidentified developer" dialog. See
-[Installation](#3-installation--first-launch) for the double-click alternative.
+removed the right-click → Open shortcut, so double-clicking a downloaded tool
+that isn't signed by an Apple-registered developer means approving it through
+System Settings. The line above avoids that: nothing is saved as a blocked file,
+so there is no "unidentified developer" warning, no `chmod`, and no
+"Open Anyway". See [Installation](#3-installation--first-launch) for the
+double-click alternative.
+
+> The line always runs the version currently published on this repository's
+> `main` branch.
 
 ---
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 1. [What This Tool Does](#1-what-this-tool-does)
 2. [System Requirements](#2-system-requirements)
 3. [Installation — First Launch](#3-installation--first-launch)
@@ -36,6 +51,7 @@ Gatekeeper warning, no `chmod`, and no "unidentified developer" dialog. See
 6. [Understanding Your Report](#6-understanding-your-report)
 7. [Output Folder Contents](#7-output-folder-contents)
 8. [Troubleshooting FAQ](#8-troubleshooting-faq)
+   - [8a. Upgrading / Fixing a Stuck Install](#8a-upgrading--fixing-a-stuck-install)
 9. [Privacy & Security](#9-privacy--security)
 10. [Re-running After Tool Updates](#10-re-running-after-tool-updates)
 11. [Known Limitations](#11-known-limitations)
@@ -54,7 +70,8 @@ produces a searchable, self-contained HTML report containing:
   survive even after a message is deleted
 - **iCloud sync status** for each message (synced, local-only, or deleted from cloud)
 
-Everything runs locally on your Mac. Nothing is uploaded anywhere.
+Everything runs locally on your Mac. The tool never uploads your messages
+(see [Privacy & Security](#9-privacy--security) for iCloud Desktop sync).
 
 ---
 
@@ -62,20 +79,22 @@ Everything runs locally on your Mac. Nothing is uploaded anywhere.
 
 | Requirement | Details |
 |---|---|
-| Mac operating system | macOS 12 Monterey or later |
-| Internet connection | Required once (for one-time software install), then optional |
-| Disk space | ~200 MB for the tool's software; output varies by message history size |
+| Mac operating system | macOS 12 Monterey or later (Intel or Apple Silicon) |
+| Internet connection | Needed on the first run for one-time setup, and each time you start the tool with the one-line command (it downloads the tool itself) |
+| Disk space | A few MB for the tool; Apple's Command Line Developer Tools take up to a few GB if they need installing; output varies by message history size |
 | iMessage account | Must have Messages app with a history on this Mac |
 
-No Python, no Homebrew, no coding skills required — the tool installs everything
-it needs automatically on first run.
+You don't install anything yourself and need no coding skills. If Python 3 is
+missing, the tool asks Apple's own installer to add it (see
+[First-Time Setup](#first-time-setup-only-if-needed)).
 
 ---
 
 ## 3. Installation — First Launch
 
-There are two ways to launch the tool. **The one-line method (A) is strongly
-recommended** — it is fewer steps and avoids every macOS security roadblock.
+There are two ways to launch the tool. **The one-line method (A) is
+recommended.** It has fewer steps and skips macOS's "unidentified developer"
+block entirely.
 
 ### Option A — One line in Terminal (recommended)
 
@@ -86,61 +105,84 @@ recommended** — it is fewer steps and avoids every macOS security roadblock.
 curl -fsSL https://raw.githubusercontent.com/flywifi/whoshe/main/imessage_ultimate_launcher.command | bash
 ```
 
-Nothing else to download, unlock, or unblock. The tool runs immediately and
-guides you with dialogs. This works because content fetched with `curl` is never
-flagged by Gatekeeper, so there is no "unidentified developer" warning.
+There is no file to download or unblock. The tool starts right away. This works
+because Gatekeeper only checks files that a browser (or similar app) downloaded
+and flagged, and this command never creates such a file. To run the tool again
+later, paste the same line again.
 
 ### Option B — Download and double-click
 
 If you prefer a file you can double-click:
 
-1. Download `imessage_ultimate_launcher.command` and save it anywhere (Desktop is fine).
-2. **Unlock it once.** macOS quarantines files downloaded from the internet and
-   needs them marked executable. Open Terminal and paste (drag the file into the
-   Terminal window to fill in its path if it isn't in Downloads):
+1. Get the launcher. If you received a zip, double-click it to unzip; the
+   launcher is inside the `imessage-forensic` folder.
+2. **Unlock it once.** macOS blocks files downloaded from the internet. Open
+   Terminal, paste this line, and press **Return**:
 
    ```
-   chmod +x ~/Downloads/imessage_ultimate_launcher.command && xattr -d com.apple.quarantine ~/Downloads/imessage_ultimate_launcher.command
+   f=~/Downloads/imessage-forensic/imessage_ultimate_launcher.command; chmod +x "$f" && xattr -c "$f"
    ```
 
-3. Double-click `imessage_ultimate_launcher.command` — it runs. Future
-   double-clicks work directly.
+   If the launcher is somewhere else, change the path after `f=`. Or type `f=`,
+   drag the launcher from Finder into the Terminal window, then type the rest
+   starting from the semicolon.
+3. Double-click `imessage_ultimate_launcher.command`. Future double-clicks work
+   directly.
 
-> **macOS 15 Sequoia note:** Apple removed the old right-click → Open shortcut.
-> If a double-clicked file is blocked and "Open" does nothing, the `chmod` +
-> `xattr` line above clears it — or just use **Option A**, which never hits this.
+> **Without Terminal:** double-click the launcher, click **Done** on the
+> warning, then open System Settings → Privacy & Security, scroll down, click
+> **Open Anyway**, enter your Mac password, and confirm **Open**. (macOS 15
+> removed the old right-click → Open shortcut.)
 
-> **Want a true zero-warning double-click?** A signed, notarized `.app` can be
-> built (requires an Apple Developer account). See
+> **Signed app (experimental):** a notarized `.app` wrapper can be built with an
+> Apple Developer account. It has not been tested yet, and it would still show
+> one confirmation prompt and still need Full Disk Access. See
 > [`scripts/RELEASING.md`](scripts/RELEASING.md).
 
-### First-Time Software Install (~3 minutes, only if needed)
+### First-Time Setup (only if needed)
 
-If your Mac already has Python 3 (most do), the tool starts right away. Only if
-no Python 3 is found will it offer a one-time install of **Homebrew + Python 3**
-(free, open-source) — a dialog appears first; click OK and wait. This happens at
-most once; future runs skip straight to extraction.
+- **Python 3.** If your Mac already has Python 3 (for example from Apple's
+  developer tools, Homebrew or python.org), nothing is installed. If not, a
+  dialog explains that Python comes with Apple's free **Command Line Developer
+  Tools**. Click **Continue**, then **Install** and **Agree** in Apple's window,
+  and enter your Mac password if asked. The download takes 5–30 minutes. Leave
+  the Terminal window open; the tool continues by itself when it finishes.
+- **Excel export support.** The tool then installs one small Python package
+  (`openpyxl`, for the `.xlsx` files) into its own private folder. If that fails
+  (for example, you're offline), the tool still works; only the Excel files are
+  skipped.
+
+Both happen once. Later runs go straight to the mode menu.
 
 ---
 
 ## 4. Granting Full Disk Access
 
-To read your Messages database, Terminal needs Full Disk Access permission. The
-tool detects if this is missing and walks you through it automatically:
+To read your Messages database (Fresh Extraction only), Terminal needs Full
+Disk Access. The tool detects if this is missing and walks you through it:
 
-1. A dialog appears explaining the requirement
-2. Click **Open Settings** — the tool opens System Settings to the exact page
-3. In the list, find **Terminal**
-   - If Terminal is not listed: click the **+** button, then navigate to
-     **Applications → Utilities → Terminal**
-4. Toggle the switch **ON** next to Terminal
-5. Switch back to the Terminal window — the tool detects the change and
-   **continues automatically** within a few seconds
+1. A dialog explains the requirement. Click **Open Settings**; System
+   Settings opens on the right page.
+2. Find **Terminal** in the list.
+   - If it isn't listed, click **+**, go to **Applications → Utilities**,
+     select **Terminal** and click **Open**.
+3. Switch it **ON**. macOS may ask for your Mac password.
+4. macOS may then offer to **Quit & Reopen** Terminal. Click **Later**. The
+   tool keeps checking and continues by itself within a few seconds.
+5. If Terminal did quit, open it again and run the tool again (paste the same
+   line, or double-click the launcher). The permission is remembered, so it
+   goes straight through.
 
-You do not need to re-launch the tool.
+> **Using iTerm, Warp, VS Code or another terminal app?** Give Full Disk Access
+> to *that* app instead. The tool's dialog names the app it detected.
 
-> **Note for macOS 13 and later:** The setting is at  
-> System Settings → Privacy & Security → Full Disk Access
+> **Where the setting is:** macOS 13 and later: System Settings → Privacy &
+> Security → Full Disk Access. macOS 12: System Preferences → Security &
+> Privacy → Privacy → Full Disk Access (click the lock first).
+
+> **Privacy tip:** once your extraction is done, you can switch Full Disk
+> Access back off. Any other command run in Terminal while it's on can read
+> the same protected files.
 
 ---
 
@@ -206,8 +248,10 @@ What it does:
   downloading your own data from each platform's website
 - You place the downloaded export files in a designated folder on your Desktop
   (`MessageExports/`)
-- The tool processes all selected sources and combines them with your iMessage
-  history into a single unified report
+- The tool processes all selected sources into a separate
+  `iMsgForensic_MultiPlatform_YYYY-MM-DD_HHMMSS/` folder with its own report.
+  This report contains only the imported apps, not your iMessage history (use
+  Fresh Extraction for that).
 
 **Which apps store data locally on your Mac:**
 
@@ -335,55 +379,61 @@ automatically when it finishes.
 
 ## 8. Troubleshooting FAQ
 
-### "The tool seemed to freeze for several minutes after I clicked OK."
+### "The tool seems stuck, waiting for developer tools."
 
-This is normal on a first run that needs setup. If your Mac had no Python 3, the
-tool is installing Homebrew and Python 3 (2-5 minutes, depending on your internet
-speed); otherwise it is just preparing its Python packages. The Terminal window
-will show progress. Wait for the next dialog to appear.
+This is Apple's Command Line Developer Tools downloading (5–30 minutes,
+sometimes longer on slow connections). Apple's own window shows the progress.
+Leave the Terminal window open; the tool continues when the install finishes.
+If you closed Apple's window or clicked Cancel, the tool offers **Start Again**
+every 10 minutes.
+
+### "I pasted the command and nothing happened (or I saw `curl: (22)` / `curl: (6)`)."
+
+The download didn't work. Check your internet connection and that you copied
+the whole line, then paste it again. `curl: (22)` means the address wasn't
+found. `curl: (6)` means there is no internet connection.
 
 ### "It won't open — 'unidentified developer' / 'Apple could not verify it is free of malware'."
 
-This is macOS Gatekeeper blocking an unsigned downloaded file, and on macOS 15
-Sequoia the old right-click → Open shortcut no longer works. **Easiest fix: don't
-download the file at all — use the one-line Terminal command in
-[Quick Start](#-quick-start-one-line-no-install).** Content fetched with `curl`
-is never quarantined, so Gatekeeper never gets involved.
+This is macOS Gatekeeper blocking a downloaded file. On macOS 15 Sequoia the old
+right-click → Open shortcut no longer works. **Easiest fix: use the one-line
+Terminal command in [Quick Start](#quick-start) instead.** It never creates a
+blocked file.
 
-If you'd rather keep the downloaded file, run the `chmod` + `xattr` line in
-[Option B](#option-b--download-and-double-click) to clear the quarantine flag,
-then double-click again.
+To keep using the downloaded file, run the unlock line in
+[Option B](#option-b--download-and-double-click), then double-click again.
 
 ### "I double-clicked it and it opened in TextEdit (or said 'permission denied')."
 
-The file lost its executable bit (common after downloading or transferring from
-Windows). Either use the [one-line command](#-quick-start-one-line-no-install)
-(no executable bit needed), or run the `chmod +x …` part of the
-[Option B](#option-b--download-and-double-click) command.
+The file lost its executable permission. This is common after the file was
+zipped with Windows tools or passed through email or chat apps. Either use the
+[one-line command](#quick-start), which doesn't need that permission, or run
+the unlock line in [Option B](#option-b--download-and-double-click).
 
-### "It says Terminal needs Full Disk Access. I don't see Terminal in the list."
+### "It asks for Full Disk Access. I don't see Terminal in the list."
 
 1. In System Settings → Privacy & Security → Full Disk Access, click the **+** button
-2. A Finder dialog opens — navigate to **Applications → Utilities**
+2. A Finder dialog opens. Go to **Applications → Utilities**
 3. Select **Terminal** and click **Open**
-4. Toggle the switch next to Terminal to **ON**
-5. Switch back to the Terminal window — the tool will detect it and continue
+4. Switch it **ON**
+5. If macOS offers **Quit & Reopen**, click **Later**; the tool continues by
+   itself. If Terminal quit anyway, run the tool again.
 
-### "It says 'Work Profile Detected' and asks me to run a Terminal command."
+If you run the tool from iTerm, Warp or another terminal app, add that app
+instead; the dialog names the app it detected.
 
-Your organization's IT profile is blocking direct database access. Follow the
-steps in the dialog:
+### "It says 'No Messages database found'."
 
-1. Press **⌘ + Space**, type `Terminal`, press **Return**
-2. Paste this command and press **Return**:
-   ```
-   cp -r ~/Library/Messages ~/Desktop/Messages_copy
-   ```
-3. Wait for the command to finish (no output = success; may take 1-2 minutes)
-4. Click **Continue** in the tool's dialog
+There is no Messages history on this Mac (`~/Library/Messages/chat.db` doesn't
+exist). Open the Messages app, sign in with your Apple ID, let it finish
+syncing, then run the tool again.
 
-If you're unsure, ask your IT department to grant Terminal "Full Disk Access" in
-your device's management profile.
+### "It says 'Couldn't read the Messages database'."
+
+Full Disk Access is on, but the database didn't open. The dialog shows the
+error. Quit the Messages app completely (⌘Q) and run the tool again. On a Mac
+managed by an employer or school, a management profile can block access. Ask
+your IT department.
 
 ### "My report is empty / shows no messages."
 
@@ -425,23 +475,23 @@ No. This tool is macOS-only. The Messages database format (`chat.db`) is unique
 to macOS and iOS backups, and the tool uses macOS-native APIs (AppleScript,
 Full Disk Access, iCloud tables) that do not exist on other platforms.
 
-### "What if I get an error about 'biplist' or 'openpyxl'?"
+### "There are no Excel (.xlsx) files in my output."
 
-The tool installs these automatically on first run. If the install failed (e.g.,
-due to a network error), delete the folder `~/.imessage_forensic_sandbox` and
-re-run the tool — it will reinstall cleanly.
-
-To delete the sandbox, open Terminal and run:
+Excel export needs the `openpyxl` package, which the tool installs on first run.
+If that install failed (for example, you were offline), the tool skips the
+Excel files. The HTML report and CSV files are unaffected. To retry, delete the
+tool's private Python folder and run the tool again while online:
 ```
 rm -rf ~/.imessage_forensic_sandbox
 ```
 
 ### "I keep getting the same crash even after downloading a new version."
 
-This is caused by macOS creating numbered copies of extracted folders
+The one-line command always fetches the latest version, so this only affects
+downloaded copies. macOS creates numbered copies of extracted folders
 (`imessage-forensic`, `imessage-forensic 2`, `imessage-forensic 3`, etc.)
-when you extract the same zip multiple times. You end up double-clicking an
-old copy of the launcher.
+when you extract zips more than once, and you end up double-clicking an old
+copy of the launcher.
 
 **Quick fix** — paste this in Terminal:
 
@@ -458,7 +508,7 @@ Then extract the latest zip fresh and double-click the `.command` file. The
 **first line of output** should read:
 
 ```
-  iMessage Forensic Recovery v10.0 (build 2026-06-20)
+  iMessage Forensic Recovery v10.1 (build 2026-09-25)
 ```
 
 If that line does **not** appear before any error, you are still running an old
@@ -468,16 +518,10 @@ copy. Delete it and use the newly extracted one.
 
 ## 8a. Upgrading / Fixing a Stuck Install
 
-### Double-clickable reset (easiest)
-
-The toolkit includes `RESET.command`. Double-click it to automatically remove
-stale tool folders, cached scripts, and the Python sandbox — without touching
-your data. Then extract the new zip fresh and run as normal.
-
-### Manual reset via Terminal
-
-If `RESET.command` is not available (e.g., you only have the launcher from an
-old version), paste this block into Terminal:
+The tool rebuilds its private Python folder by itself whenever the tool version
+or your Python changes, so a reset is rarely needed. If an install still seems
+stuck, paste this block into Terminal. It removes old copies of the tool and
+its private Python folder, and never touches your recovered data:
 
 ```bash
 # Safe cleanup — preserves your recovered data
@@ -493,14 +537,21 @@ ls ~/Desktop/iMsgForensic_* 2>/dev/null && echo "  Data folders preserved above.
 echo "Done."
 ```
 
+(Developers: `RESET.command` in this repository does the same thing. It is not
+included in the user zip, because it deletes the `imessage-forensic` folder it
+would be sitting in.)
+
 ### After the reset
 
-1. Extract the LATEST zip into a **new, clean folder** (delete any existing
-   `imessage-forensic*` folders in Downloads first).
-2. Verify the extracted folder is named exactly `imessage-forensic` (not
-   `imessage-forensic 2` or similar — that means you still have an old copy).
-3. Double-click `imessage_ultimate_launcher.command`.
-4. Confirm the first line printed says `iMessage Forensic Recovery v10.0`.
+- **One-line command:** just paste it again. It always runs the latest version.
+- **Zip:**
+  1. Unzip the newest zip. Delete any existing `imessage-forensic*` folders in
+     Downloads first.
+  2. Check that the unzipped folder is named exactly `imessage-forensic` (not
+     `imessage-forensic 2` or similar, which means an old copy is still around).
+  3. Unlock and double-click `imessage_ultimate_launcher.command` as in
+     [Option B](#option-b--download-and-double-click).
+  4. Confirm the first line printed says `iMessage Forensic Recovery v10.1`.
 
 ---
 
@@ -511,12 +562,24 @@ echo "Done."
 - iCloud sync tables within that database
 - Optionally: iPhone/iPad backup databases under `~/Library/Application Support/MobileSync/Backup/`
 
-**What never leaves your machine:**
-- Everything. The tool runs entirely offline. No data is uploaded, transmitted,
-  or shared. Reports are saved locally on your Desktop.
-- The one-time software install (Homebrew, Python 3, packages) downloads from
-  public package servers (`brew.sh`, `pypi.org`). After that, no network access
-  is needed.
+**What the tool sends over the network:** nothing. It never uploads, transmits
+or shares your messages or results. Its only network use is downloading:
+- the tool itself from GitHub, each time you start it with the one-line command;
+- Apple's Command Line Developer Tools, from Apple, if Python 3 is missing;
+- the `openpyxl` package, from `pypi.org`, once.
+
+**Where your data goes (please read):**
+- Results are saved in folders on your **Desktop**. They include a full copy of
+  your Messages database and plain-text exports of your messages. If **iCloud
+  Desktop & Documents** is turned on (System Settings → your name → iCloud →
+  iCloud Drive), macOS uploads these folders to iCloud Drive like anything else
+  on your Desktop. Move the folders somewhere that isn't synced, or delete them
+  when you're finished, if that matters to you.
+- Import mode can decrypt Signal Desktop's database with the key stored on this
+  Mac, and saves those messages as plain text in the output folder.
+- **Full Disk Access** stays switched on for Terminal until you turn it off.
+  While it's on, anything run in Terminal can read protected files. Switch it
+  off when you're done: System Settings → Privacy & Security → Full Disk Access.
 
 **Content security in the report:**
 - The HTML report includes a Content Security Policy that blocks outbound
@@ -540,8 +603,10 @@ echo "Done."
 
 When the tool is updated with new features or bug fixes:
 
-1. Download the new `imessage_ultimate_launcher.command`
-2. Double-click to run
+1. **One-line command:** nothing to download; pasting the line always runs the
+   latest version. **Downloaded launcher:** get the new zip and unlock it as in
+   [Option B](#option-b--download-and-double-click).
+2. Start the tool
 3. Choose **Re-analyze a Folder** (if you just want an updated report from
    existing data) or **Fresh Extraction** (to also capture any new messages)
 
@@ -566,9 +631,9 @@ extraction folders to update at once.
   that it was intentionally deleted.
 
 - **Managed/MDM devices.** If your Mac is managed by an organization (Rippling,
-  Jamf, etc.), the MDM profile may block direct database access. The Terminal
-  workaround (`cp -r ~/Library/Messages ~/Desktop/Messages_copy`) works in most
-  cases, but some highly-restricted profiles may block even that.
+  Jamf, etc.), its management profile may prevent granting Full Disk Access, and
+  then the tool cannot read Messages. Only the organization's IT department can
+  change that.
 
 - **Attachments are not extracted.** The report references attachment filenames
   and MIME types, but the actual image/video/audio files are not copied or
@@ -584,36 +649,38 @@ extraction folders to update at once.
 
 ### Architecture
 
-The toolkit ships as a single double-clickable bash file:
-`imessage_ultimate_launcher.command`
+The toolkit ships to users as a single bash file,
+`imessage_ultimate_launcher.command`. Users either pipe it into bash with the
+one-line `curl` command or double-click it.
 
-This file embeds five Python modules as heredocs (single-quoted delimiters prevent
-variable expansion). At runtime, the bash launcher writes each module to a hidden
-file in `$HOME` and invokes them via `python3`:
+The whole script is one `main()` function called on the last line. So when it
+is piped from `curl`, nothing runs until the entire file has arrived.
 
-| Heredoc marker | Written to | Purpose |
-|---|---|---|
-| `CORE_PY_EOF` | `~/.imsg_core.py` | DB extraction, WAL carving, backup scan, XLSX export |
-| `CK_PY_EOF` | `~/.imsg_cloudkit.py` | CloudKit sync table classification |
-| `PARSER_PY_EOF` | `~/.imsg_parser.py` | Message parsing, tombstone detection, timeline CSV |
-| `REPORT_PY_EOF` | `~/.imsg_report.py` | Self-contained HTML report generation |
-| `REORG_PY_EOF` | `~/.imsg_reorganize.py` | Scan, classify, and upgrade extraction folders |
+It embeds six Python modules as single-quoted heredocs. At runtime it writes
+them into a private per-run temp directory (`mktemp -d`, mode 0700) and runs
+them with the Python it found. An `EXIT` trap deletes the directory afterwards.
 
-The same five modules also exist as standalone CLI scripts
-(`core.py`, `cloudkit.py`, `parser.py`, `report.py`, `merge.py`) for
-command-line use and testing. All of these files live at the **root of this
-repository** alongside the launcher.
+| Heredoc marker | Written to (`$TMPDIR_RUN/`) | Purpose | Standalone counterpart |
+|---|---|---|---|
+| `CORE_PY_EOF` | `imsg_core.py` | DB copy, WAL carving, backup scan, CSV/JSON/XLSX export | `core.py` (partial overlap) |
+| `CK_PY_EOF` | `imsg_cloudkit.py` | CloudKit sync-status classification | `cloudkit.py` (partial overlap) |
+| `PARSER_PY_EOF` | `imsg_parser.py` | Message parsing, tombstones, WAL cross-reference + attribution | `parser.py` + `extractors/attribution.py` |
+| `REPORT_PY_EOF` | `imsg_report.py` | Self-contained HTML report | `report.py` |
+| `REORG_PY_EOF` | `imsg_reorganize.py` | Scan / validate / upgrade extraction folders | none |
+| `PLATFORM_PY_EOF` | `imsg_platform_import.py` | Import from Signal, WhatsApp, Meta, Snapchat, Telegram, Google Messages | `extractors/*.py` (partial overlap) |
 
-Multi-platform support lives in the `extractors/` package, which is only used by
-the standalone CLI (the launcher heredocs run from a temp directory and cannot
-import it, so the attribution logic is inlined into the launcher's parser
-heredoc):
+The standalone scripts in the repository root are **separate command-line
+tools**, not exact copies of the heredocs. They share the security-relevant
+code, which `sync_check.py` checks, but differ in features and some logic.
+`merge.py` (multi-device merge) exists only as a standalone tool. The launcher
+never imports the `extractors/` package; the `PLATFORM_PY_EOF` heredoc carries
+its own copy of that logic.
 
 | File | Purpose |
 |---|---|
 | `extractors/attribution.py` | Platform attribution engine — weighted regex scoring → per-platform confidence (0.40 threshold) |
 | `extractors/recursive_search.py` | iOS MobileSync `Manifest.db` scan for third-party app databases |
-| `extractors/signal_desktop.py` | Signal Desktop reader (marks records `ENCRYPTED`; never decrypts) |
+| `extractors/signal_desktop.py` | Signal Desktop reader (decrypts with the key in Signal's `config.json` when available, writes plaintext) |
 | `extractors/whatsapp_desktop.py` | WhatsApp Desktop reader |
 | `extractors/meta_import.py` | Instagram / Facebook Messenger data-export ZIP importer |
 | `extractors/snapchat_import.py` | Snapchat "My Data" ZIP importer |
@@ -623,8 +690,9 @@ heredoc):
 
 ### Two-Copy Architecture and Drift Guard
 
-Because the modules exist twice (standalone + embedded), security fixes must be
-applied in both places. A drift guard enforces this:
+Because the security-relevant code exists twice (standalone + embedded),
+security fixes must be applied in both places. A drift guard checks the listed
+invariants:
 
 ```bash
 python3 sync_check.py
@@ -664,87 +732,97 @@ invariant failed in which file. Run this after every security-relevant change.
 
 ### Standalone CLI Usage
 
-```bash
-# Extract from a Messages database
-python3 core.py ~/Library/Messages/chat.db /path/to/output
+The standalone scripts need Python 3.10 or later. The launcher's embedded
+modules also run on Apple's Python 3.9.
 
-# Parse extracted data
-python3 parser.py /path/to/output
+```bash
+# Extract (takes no arguments: reads ~/Library/Messages/chat.db and writes
+# ~/Desktop/iMsgForensic_<timestamp>/; needs Full Disk Access)
+python3 core.py
 
 # Classify CloudKit sync status
-python3 cloudkit.py /path/to/output
+python3 cloudkit.py --input ~/Desktop/iMsgForensic_<timestamp>
 
-# Generate HTML report
-python3 report.py /path/to/output/parsed_output /path/to/output/cloudkit_classification.json
+# Parse into a timeline (optional filters: --contact, --since, --until, --keyword)
+python3 parser.py --input ~/Desktop/iMsgForensic_<timestamp>
 
-# Merge multiple extractions (multi-device)
-python3 merge.py /path/to/device1 /path/to/device2 --output /path/to/merged
+# Generate the HTML report
+python3 report.py --input ~/Desktop/iMsgForensic_<timestamp>/parsed_output \
+                  --cloudkit ~/Desktop/iMsgForensic_<timestamp>/cloudkit_classification.json
+
+# Merge several extractions (multi-device)
+python3 merge.py --inputs /path/to/device1 /path/to/device2 --output /path/to/merged
+python3 merge.py --scan ~/Desktop            # or find iMsgForensic_* folders automatically
 ```
+
+Each script has `--help`.
 
 ### Repository Layout
 
-This is a standalone repository — every file lives at the root:
-
 ```
 .
-├── imessage_ultimate_launcher.command   # main entry point (bash + embedded Python), executable (100755)
-├── RESET.command                        # double-clickable cleanup helper, executable (100755)
-├── core.py                              # DB copy, CloudKit probe, WAL carving, exports
-├── cloudkit.py                          # CloudKit residual record probing
-├── parser.py                            # message parsing, tombstones, WAL cross-ref + attribution
-├── report.py                            # HTML report generation
-├── merge.py                             # unified timeline across sources
+├── imessage_ultimate_launcher.command   # the tool users run (bash + 6 embedded Python modules), mode 100755
+├── RESET.command                        # cleanup helper for developers, mode 100755 (not in the user zip)
+├── core.py  cloudkit.py  parser.py  report.py  merge.py   # standalone CLI tools
 ├── sync_check.py                        # drift guard (see above)
-├── README.md
-└── extractors/                          # multi-platform readers/importers (standalone CLI only)
+├── extractors/                          # standalone multi-platform readers/importers
+├── verify.sh                            # pre-commit check suite
+├── build.py                             # builds the user zip from the HEAD commit
+├── scripts/                             # experimental signed-.app build + RELEASING.md
+├── README.md  LICENSE
+└── .gitattributes  .gitignore           # LF line endings enforced; build outputs ignored
 ```
 
-Both `.command` files must stay executable in git (mode `100755`) so they run
-when cloned on macOS. If you edit one on Windows the execute bit is dropped;
-restore it with:
+**Windows hazards.** `.gitattributes` forces LF line endings, which matters
+because a CRLF launcher fails on macOS with `/bin/bash^M: bad interpreter`. Both
+`.command` files must stay mode `100755` in git. Editing a tracked file on
+Windows keeps the mode. It gets lost when a file is added fresh, for example
+through a GitHub web upload or deleting and re-adding it. Check and restore it
+with:
 
 ```bash
-git update-index --chmod=+x imessage_ultimate_launcher.command
-git update-index --chmod=+x RESET.command
 git ls-files --stage *.command   # expect 100755 on both
+git update-index --chmod=+x imessage_ultimate_launcher.command RESET.command
 ```
 
 ### Verifying a Change
 
-After any edit, run the full check suite from the repo root — it must be clean
-before you commit or deliver:
+Before you commit, run from the repo root:
 
 ```bash
 ./verify.sh
 ```
 
-`verify.sh` runs, and aborts on the first failure of:
+It aborts on the first failure of:
 
 1. `bash -n imessage_ultimate_launcher.command` — launcher bash is valid
-2. every embedded Python heredoc parses (`CORE/PARSER/REPORT/REORG/CK` markers)
-3. every standalone module parses (`core.py parser.py report.py merge.py cloudkit.py sync_check.py`)
-4. `python3 sync_check.py` — the drift guard (all 10 invariants present in both copies)
+2. the embedded Python heredocs parse (`CORE/PARSER/REPORT/REORG/CK` markers)
+3. the main standalone modules parse (`core.py parser.py report.py merge.py cloudkit.py sync_check.py`)
+4. `python3 sync_check.py` — the drift guard's 10 invariants
 
-It prints `ALL CHECKS PASSED` on success. Run it in the cloud env or on macOS;
-on Windows use git-bash.
+**Not yet covered:** the `PLATFORM_PY_EOF` heredoc, `extractors/*.py`,
+`RESET.command`, `scripts/*.sh`, line endings, and file modes. On Windows
+(git-bash), run it as `PYTHONUTF8=1 ./verify.sh`, and make sure `python3` is a
+real Python rather than the Microsoft Store shortcut.
 
-Remember the dual-copy rule: any change to logic in a standalone module MUST be
-mirrored in the corresponding launcher heredoc (and vice-versa), or `sync_check.py`
-will fail.
+`sync_check.py` only checks the listed security invariants. It does not detect
+other logic drift between a standalone script and its heredoc. Keeping those in
+step is a manual job.
 
 ### Building a Release
 
-To produce the distributable zip:
-
 ```bash
-python3 build.py
+python3 build.py          # user zip: launcher + README + LICENSE
+python3 build.py --full   # every tracked file (developer bundle)
 ```
 
-This packages the git-tracked files (so `__pycache__/`, `*.pyc`, and `*.zip` are
-excluded automatically) into `imessage-forensic-toolkit-LATEST.zip`, setting the
-`.command` launchers to mode `0o100755` inside the archive so they stay
-double-clickable on macOS even when the zip is built from Windows. It then
-re-opens the archive and asserts those executable bits are correct.
+This packages the files from the **HEAD commit**, not your working tree.
+Uncommitted edits are left out, and the build warns about them. Every entry sits
+under an `imessage-forensic/` folder. It is marked as a Unix entry with mode
+0755 for `.command` files, so the launcher stays executable even when you build
+on Windows. The build refuses any text file containing a CR (CRLF) character.
+Output: `imessage-forensic-v<version>-<commit>.zip`.
 
-The resulting zip is a **deliverable only** — it is gitignored and must never be
-committed (you push the code; the zip is for distribution).
+The zip is a **deliverable only**. It is gitignored and must never be committed.
+See [`scripts/RELEASING.md`](scripts/RELEASING.md) for the ways to hand the tool
+to users.

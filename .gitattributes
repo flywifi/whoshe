@@ -1,0 +1,12 @@
+# Force LF line endings in every checkout, including Windows (where Git defaults
+# to core.autocrlf=true). A CRLF launcher fails on macOS with
+# "/bin/bash^M: bad interpreter", so this is load-bearing.
+* text=auto eol=lf
+*.command text eol=lf
+*.sh      text eol=lf
+*.py      text eol=lf
+*.md      text eol=lf
+LICENSE   text eol=lf
+
+*.zip binary
+*.png binary

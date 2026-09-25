@@ -2,91 +2,111 @@
 """
 build.py — produce the deliverable zip for the iMessage Forensic Toolkit.
 
-Why Python instead of `zip`/PowerShell: this script sets each entry's
-permission bits explicitly via ZipInfo.external_attr, so the executable bit on
-the .command launchers survives even when the zip is built on Windows (where the
-filesystem has no Unix exec bit). Run it the same way everywhere:
+    python3 build.py          # end-user zip: launcher + README + LICENSE
+    python3 build.py --full   # every file in the commit (developer bundle)
 
-    python3 build.py
+Packages the files as they are in the HEAD commit, not the working tree, so the
+result is the same on macOS, Linux and Windows:
 
-What it does:
-  * Collects the file list from `git ls-files`, so only tracked files are
-    packaged. This automatically excludes __pycache__/, *.pyc, and *.zip
-    (they are in .gitignore), and never bundles the output zip itself.
-  * Writes mode 0o100755 for *.command, 0o100644 for everything else.
-  * Re-opens the finished zip and asserts both .command entries are 0o755.
+  * Line endings are LF. The bytes come from git's object store (LF, enforced by
+    .gitattributes), never from a Windows checkout where core.autocrlf may have
+    turned them into CRLF. A CRLF launcher fails on macOS with
+    "/bin/bash^M: bad interpreter". As a backstop the build refuses any text file
+    that contains a carriage return.
+  * The launcher stays executable. Each entry is marked as made on Unix
+    (create_system = 3) with mode 0755 for *.command. Python on Windows would
+    otherwise mark entries as MS-DOS, and unzip tools then ignore the mode bits.
+  * Uncommitted edits are NOT included. The build warns if there are any.
 
-The output zip is gitignored and is a deliverable only — do NOT commit it.
+Everything goes under one top-level folder, `imessage-forensic/`, so unzipping
+yields a single folder. The output zip is gitignored and is a deliverable only.
+Do NOT commit it.
 """
-import os
-import stat
+import re
 import subprocess
 import sys
+import time
 import zipfile
 
-OUTPUT = "imessage-forensic-toolkit-LATEST.zip"
+LAUNCHER = "imessage_ultimate_launcher.command"
+USER_FILES = [LAUNCHER, "README.md", "LICENSE"]
+TOP = "imessage-forensic"
+TEXT_SUFFIXES = (".command", ".sh", ".py", ".md", ".txt", ".json", "LICENSE", ".gitignore", ".gitattributes")
 
 
-def tracked_files():
-    """Return git-tracked files (respects .gitignore, excludes the output zip)."""
-    out = subprocess.run(
-        ["git", "ls-files"],
-        capture_output=True, text=True, check=True,
-    ).stdout
-    files = [line for line in out.splitlines() if line and line != OUTPUT]
-    if not files:
-        sys.exit("[!] `git ls-files` returned nothing — run from the repo root.")
-    return files
+def git(*args: str) -> bytes:
+    return subprocess.run(["git", *args], capture_output=True, check=True).stdout
 
 
-def mode_for(path: str) -> int:
-    """0o755 for double-clickable launchers, 0o644 otherwise."""
-    return 0o100755 if path.endswith(".command") else 0o100644
-
-
-def build() -> list[str]:
-    files = tracked_files()
-    if os.path.exists(OUTPUT):
-        os.remove(OUTPUT)
-    commands = []
-    with zipfile.ZipFile(OUTPUT, "w", zipfile.ZIP_DEFLATED) as z:
-        for path in sorted(files):
-            info = zipfile.ZipInfo(path)
-            info.external_attr = mode_for(path) << 16
-            info.compress_type = zipfile.ZIP_DEFLATED
-            with open(path, "rb") as fh:
-                z.writestr(info, fh.read())
-            if path.endswith(".command"):
-                commands.append(path)
-    return commands
-
-
-def verify_exec_bits() -> None:
-    """Re-open the zip and assert the .command entries are executable."""
-    bad = []
-    with zipfile.ZipFile(OUTPUT) as z:
-        commands = [i for i in z.infolist() if i.filename.endswith(".command")]
-        if not commands:
-            sys.exit("[!] No .command files found in the zip — aborting.")
-        for info in commands:
-            perms = (info.external_attr >> 16) & 0o777
-            mark = "ok" if perms == 0o755 else "WRONG"
-            print(f"    {info.filename}: {oct(perms)} ({mark})")
-            if perms != 0o755:
-                bad.append(info.filename)
-    if bad:
-        sys.exit(f"[!] Not executable in zip: {', '.join(bad)}")
+def head_tree() -> dict:
+    """{path: (mode, blob_sha)} for every file in HEAD."""
+    tree = {}
+    for rec in git("ls-tree", "-r", "-z", "HEAD").split(b"\0"):
+        if not rec:
+            continue
+        meta, path = rec.split(b"\t", 1)
+        mode, kind, sha = meta.split()
+        if kind == b"blob":
+            tree[path.decode()] = (mode.decode(), sha.decode())
+    return tree
 
 
 def main() -> int:
-    commands = build()
-    size = os.path.getsize(OUTPUT)
-    print(f"[+] Wrote {OUTPUT} ({size:,} bytes)")
-    print("[+] Checking executable bits inside the zip:")
-    verify_exec_bits()
-    print(f"[+] Done. {len(commands)} .command launcher(s) preserved at 0o755.")
-    print("    Deliver this zip to the user — do NOT commit it (.gitignore covers it).")
+    full = "--full" in sys.argv[1:]
+    tree = head_tree()
+    files = sorted(tree) if full else USER_FILES
+    missing = [f for f in files if f not in tree]
+    if missing:
+        sys.exit(f"[!] Not in the HEAD commit: {', '.join(missing)}")
+
+    dirty = git("status", "--porcelain", "--", *files).decode().strip()
+    if dirty:
+        print("[!] Uncommitted changes are NOT included in the zip:")
+        print("    " + dirty.replace("\n", "\n    "))
+
+    sha = git("rev-parse", "--short", "HEAD").decode().strip()
+    stamp = int(git("log", "-1", "--format=%ct", "HEAD").decode().strip())
+    date_time = time.gmtime(stamp)[:6]
+    launcher_src = git("cat-file", "blob", tree[LAUNCHER][1]).decode("utf-8")
+    m = re.search(r'^_TOOL_VERSION="([^"]+)"', launcher_src, re.M)
+    version = m.group(1) if m else "unknown"
+    output = f"imessage-forensic-v{version}{'-full' if full else ''}-{sha}.zip"
+
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as z:
+        for path in files:
+            mode, blob = tree[path]
+            data = git("cat-file", "blob", blob)
+            if path.endswith(TEXT_SUFFIXES) and b"\r" in data:
+                sys.exit(f"[!] {path} contains a carriage return (CRLF) — refusing to build.")
+            info = zipfile.ZipInfo(f"{TOP}/{path}", date_time=date_time)
+            info.create_system = 3                      # Unix: extractors honour the mode bits
+            perms = 0o755 if (mode == "100755" or path.endswith(".command")) else 0o644
+            info.external_attr = (0o100000 | perms) << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(info, data)
+
+    verify(output)
+    print(f"[+] Wrote {output}  ({len(files)} files from commit {sha})")
+    print("    Deliver this zip; do NOT commit it (.gitignore covers *.zip).")
     return 0
+
+
+def verify(output: str) -> None:
+    """Re-open the zip and check what an unzip tool will actually see."""
+    problems = []
+    with zipfile.ZipFile(output) as z:
+        for info in z.infolist():
+            perms = (info.external_attr >> 16) & 0o777
+            if info.create_system != 3:
+                problems.append(f"{info.filename}: create_system={info.create_system} (mode bits would be ignored)")
+            if info.filename.endswith(".command") and perms != 0o755:
+                problems.append(f"{info.filename}: mode {oct(perms)} (not executable)")
+            if info.filename.endswith(TEXT_SUFFIXES) and b"\r" in z.read(info):
+                problems.append(f"{info.filename}: contains CR")
+            if info.filename.endswith(".command"):
+                print(f"    {info.filename}: {oct(perms)}, unix entry, LF only")
+    if problems:
+        sys.exit("[!] Zip check failed:\n    " + "\n    ".join(problems))
 
 
 if __name__ == "__main__":

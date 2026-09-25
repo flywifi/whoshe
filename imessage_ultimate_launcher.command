@@ -1,29 +1,21 @@
 #!/bin/bash
 
 # =============================================================================
-# iMessage Forensic Recovery — Seamless Launcher v10.0
+# iMessage Forensic Recovery — Seamless Launcher v10.1
 # Four modes: Fresh Extraction · Import from Other Apps · Re-analyze · Scan & Repair
-# Double-click to run. Everything is guided by native macOS dialogs.
+# Run with the one-line curl command in the README, or double-click this file.
 # =============================================================================
+
+# Everything runs inside main(), which is called on the last line. When the
+# script is piped from curl, bash then only starts once the whole file has
+# arrived, so an interrupted download runs nothing.
+main() {
 
 # ── Version banner (diagnostic anchor — must be first output) ─────────────────
 # If you see a crash WITHOUT this line printing, you are running a stale copy.
 echo ""
-echo "  iMessage Forensic Recovery v10.0 (build 2026-06-20)"
+echo "  iMessage Forensic Recovery v10.1 (build 2026-09-25)"
 echo ""
-
-# ── Self-heal when launched as a real file (double-click path) ────────────────
-# If we were started from an actual file on disk (not piped via `curl | bash`),
-# clear the Gatekeeper quarantine flag and ensure the execute bit is set, so
-# subsequent double-clicks are smoother. On the FIRST run Gatekeeper has already
-# been satisfied by the time this code runs, so this only smooths re-launches.
-# Under `curl | bash` BASH_SOURCE is unset and $0 is "bash" (not a file), so the
-# guard below is false and nothing happens.
-_SELF="${BASH_SOURCE[0]:-$0}"
-if [ -f "$_SELF" ]; then
-    xattr -d com.apple.quarantine "$_SELF" 2>/dev/null || true
-    [ -x "$_SELF" ] || chmod +x "$_SELF" 2>/dev/null || true
-fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -133,6 +125,11 @@ Messages captured   : ${msg_count}
 Deletion indicators : ${tomb_count}
 
 Folder: $(basename "$folder")"
+    if [[ "$MODE" == *"Fresh Extraction"* ]]; then
+        done_msg="${done_msg}
+
+Privacy tip: you can now switch Full Disk Access back off for ${TERM_APP} (System Settings → Privacy & Security → Full Disk Access)."
+    fi
     done_msg="$(as_escape "$done_msg")"
 
     local choice
@@ -192,24 +189,53 @@ echo "  Selected: $MODE"
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2.5 Resolve Python 3 — install nothing unless there is no usable interpreter
+# 2.5 Resolve Python 3
 # ─────────────────────────────────────────────────────────────────────────────
-# Most Macs already have a working python3 (Xcode Command Line Tools, Homebrew,
-# or a python.org install). When that's true we use it as-is and DON'T touch
-# Homebrew at all — installing Homebrew triggers a sudo password prompt and a
-# multi-GB Xcode download, which is the single biggest first-run obstacle for a
-# non-technical user. Homebrew is a last resort, only when no interpreter exists.
+# Use an existing python3 if there is one (Homebrew, python.org, or Apple's
+# Command Line Developer Tools). If there is none, install Apple's Command Line
+# Developer Tools, which include python3. That install is Apple-signed, needs no
+# Terminal password prompt and works on Intel and Apple Silicon.
+#
+# We deliberately do NOT install Homebrew: its installer must run
+# non-interactively here, and in that mode it cannot ask for the sudo password,
+# so on a normal Mac it aborts.
+
+# Which app owns this window. macOS grants Full Disk Access to that app, which
+# isn't always Terminal (iTerm, Warp, VS Code...).
+case "${TERM_PROGRAM:-}" in
+    iTerm.app)    TERM_APP="iTerm" ;;
+    WarpTerminal) TERM_APP="Warp" ;;
+    vscode)       TERM_APP="Visual Studio Code" ;;
+    ghostty)      TERM_APP="Ghostty" ;;
+    WezTerm)      TERM_APP="WezTerm" ;;
+    *)            TERM_APP="Terminal" ;;
+esac
+
+# How the user runs the tool again. Piped via `curl | bash`, stdin is not a
+# terminal; double-clicked, it is.
+if [ -t 0 ]; then
+    RERUN_HINT="double-click the launcher again"
+else
+    RERUN_HINT="paste the same one-line command into ${TERM_APP} again"
+fi
 
 # Pick up an already-installed Homebrew so its python3 is on PATH (no install).
 for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
     [ -x "$_brew" ] && eval "$("$_brew" shellenv)" && break
 done
 
+have_dev_tools() { xcode-select -p >/dev/null 2>&1; }
+
 usable_python() {   # prints the path of a working python3 >= 3.9, else nothing
     local cand
     for cand in "$(command -v python3 2>/dev/null)" \
-                /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+                /opt/homebrew/bin/python3 /usr/local/bin/python3 \
+                /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
+                /usr/bin/python3; do
         [ -n "$cand" ] && [ -x "$cand" ] || continue
+        # Until the developer tools are installed, /usr/bin/python3 is only a stub,
+        # and running it pops Apple's install dialog. Don't probe it before then.
+        if [ "$cand" = /usr/bin/python3 ] && ! have_dev_tools; then continue; fi
         if "$cand" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)' 2>/dev/null; then
             printf '%s' "$cand"; return 0
         fi
@@ -220,33 +246,32 @@ usable_python() {   # prints the path of a working python3 >= 3.9, else nothing
 PYTHON="$(usable_python || true)"
 
 if [ -z "$PYTHON" ]; then
-    alert "One-Time Setup Required
+    confirm "One-Time Setup: Python
 
-This tool needs Python 3 to run. The free Homebrew installer will set it up
-(about 3 minutes, one time only).
+This tool runs on Python, which Apple provides free as part of its \"Command Line Developer Tools\".
 
-The Terminal window may show activity in the background — that is normal.
-Click OK to start, then wait for the next dialog." "note"
-    if ! command -v brew &>/dev/null; then
-        notify "Installing Homebrew — one-time setup, ~3 minutes..."
-        echo "[*] Installing Homebrew..."
-        NONINTERACTIVE=1 /bin/bash -c \
-            "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>&1
-        for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-            [ -x "$_brew" ] && eval "$("$_brew" shellenv)" && break
-        done
-    fi
-    notify "Installing Python 3..."
-    echo "[*] Installing Python 3..."
-    brew install python --quiet 2>&1
-    PYTHON="$(usable_python || true)"
-fi
+Click Continue, then in Apple's window click \"Install\" and \"Agree\". If macOS asks for your Mac password, enter it.
 
-if [ -z "$PYTHON" ]; then
-    alert "Could not find or install Python 3.
+The download can take 5-30 minutes. Leave this window open. The tool continues by itself when the install finishes." \
+        "Quit" "Continue" "note" || exit 0
 
-Please install Python 3 from python.org, then run this tool again." "stop"
-    exit 1
+    xcode-select --install >/dev/null 2>&1 || true
+    echo "[*] Waiting for Apple's Command Line Developer Tools to finish installing..."
+    notify "Waiting for Apple's developer tools to install..."
+    WAIT=0
+    until PYTHON="$(usable_python)"; do
+        sleep 5
+        WAIT=$((WAIT + 5))
+        if [ $((WAIT % 600)) -eq 0 ]; then
+            _ct_msg="$(as_escape "Still waiting for Apple's Command Line Developer Tools.
+
+If Apple's window is still downloading, click Keep Waiting.
+If you closed it or clicked Cancel, click Start Again.")"
+            _ct_choice="$(osascript -e "button returned of (display dialog \"${_ct_msg}\" buttons {\"Quit\", \"Start Again\", \"Keep Waiting\"} default button \"Keep Waiting\" cancel button \"Quit\" with icon caution)" 2>/dev/null)" || exit 0
+            [ "$_ct_choice" = "Start Again" ] && { xcode-select --install >/dev/null 2>&1 || true; }
+        fi
+    done
+    notify "Developer tools installed — continuing..."
 fi
 echo "[*] Using Python: $PYTHON"
 
@@ -256,43 +281,60 @@ echo "[*] Using Python: $PYTHON"
 
 CHAT_DB="$HOME/Library/Messages/chat.db"
 
-check_fda() {
-    "$PYTHON" -c "open('$CHAT_DB','rb').read(1)" >/dev/null 2>&1
+fda_status() {      # prints ok | missing | denied   (path passed via argv)
+    "$PYTHON" -c '
+import sys
+try:
+    open(sys.argv[1], "rb").read(1)
+    print("ok")
+except FileNotFoundError:
+    print("missing")
+except Exception:
+    print("denied")
+' "$CHAT_DB" 2>/dev/null || echo denied
+}
+
+no_chat_db() {
+    alert "No Messages database found
+
+There is no Messages history on this Mac (~/Library/Messages/chat.db).
+
+Open the Messages app, sign in with your Apple ID, let it finish syncing, then ${RERUN_HINT}." "stop"
+    exit 1
 }
 
 if [[ "$MODE" == *"Fresh Extraction"* ]]; then
-    if ! check_fda; then
-        osascript << 'ASFDA' || exit 0
-display dialog "Permission Needed
+    _fda="$(fda_status)"
+    [ "$_fda" = "missing" ] && no_chat_db
+    if [ "$_fda" != "ok" ]; then
+        confirm "Permission Needed (one time)
 
-This tool requires Full Disk Access to read your Messages database.
+To read your Messages, macOS needs you to give ${TERM_APP} \"Full Disk Access\".
 
-After clicking \"Open Settings\":
-  1. Find Terminal in the list
-     (click + to add it if it's not there)
-  2. Toggle the switch ON next to Terminal
-  3. Come back — the tool will continue
-     automatically once it detects access." \
-    buttons {"Quit", "Open Settings"} \
-    default button "Open Settings" \
-    cancel button "Quit" \
-    with icon caution
-ASFDA
+After clicking Open Settings:
+  1. Find ${TERM_APP} in the list. If it isn't there, click + and add it.
+  2. Turn its switch ON (macOS may ask for your Mac password).
+  3. If macOS offers to \"Quit & Reopen\" ${TERM_APP}, click \"Later\". This tool keeps waiting and continues by itself.
+
+If ${TERM_APP} did quit, just ${RERUN_HINT}. The permission is remembered." \
+            "Quit" "Open Settings" "caution" || exit 0
 
         open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
         echo "[*] Waiting for Full Disk Access..."
         WAIT=0
-        while ! check_fda; do
+        while :; do
+            _fda="$(fda_status)"
+            [ "$_fda" = "ok" ] && break
+            [ "$_fda" = "missing" ] && no_chat_db
             sleep 2
             WAIT=$((WAIT + 2))
             if [ $WAIT -eq 120 ]; then
                 confirm "Still waiting for Full Disk Access.
 
-Make sure Terminal has the toggle ON in:
+Make sure ${TERM_APP} has its switch ON in:
 System Settings → Privacy & Security → Full Disk Access
 
-If Terminal isn't listed, click + and select it from
-Applications/Utilities." \
+If you already turned it on and nothing happens, quit ${TERM_APP}, reopen it, and ${RERUN_HINT}." \
                 "Quit" "Keep Waiting" "caution" || exit 0
                 WAIT=0
             fi
@@ -301,76 +343,68 @@ Applications/Utilities." \
         sleep 1
     fi
 
-    # MDM block check
-    if ! "$PYTHON" -c "
-import sqlite3
-c=sqlite3.connect('file:$CHAT_DB?mode=ro&immutable=1',uri=True)
-c.execute('SELECT count(*) FROM message').fetchone()
-c.close()
-" 2>/dev/null; then
-        confirm "Work Profile Detected
+    # Access is granted; make sure the database actually opens.
+    DB_ERR="$("$PYTHON" -c '
+import sqlite3, sys, pathlib
+try:
+    c = sqlite3.connect(pathlib.Path(sys.argv[1]).as_uri() + "?mode=ro&immutable=1", uri=True)
+    c.execute("SELECT count(*) FROM message").fetchone()
+    c.close()
+except Exception as e:
+    print(e)
+' "$CHAT_DB" 2>&1)"
+    if [ -n "$DB_ERR" ]; then
+        alert "Couldn't read the Messages database
 
-Your device's IT profile is blocking access to your Messages.
-Here's how to work around it:
+Error: ${DB_ERR}
 
-  1. Press ⌘ + Space, type Terminal, press Return
-  2. Copy and paste this command, then press Return:
+Quit the Messages app completely (⌘Q), then ${RERUN_HINT}.
 
-     cp -r ~/Library/Messages ~/Desktop/Messages_copy
-
-  3. Wait for it to finish (no output = success)
-  4. Click Continue below
-
-Need help? Ask your IT department to grant Full Disk Access." \
-        "Quit" "Continue" "caution" || exit 0
-
-        CHAT_DB="$HOME/Desktop/Messages_copy/chat.db"
-        if [ ! -f "$CHAT_DB" ]; then
-            alert "Messages_copy not found on your Desktop.
-
-Please complete these steps first:
-  1. Press ⌘ + Space, type Terminal, press Return
-  2. Paste and run: cp -r ~/Library/Messages ~/Desktop/Messages_copy
-  3. Re-launch this tool once it finishes." "stop"
-            exit 1
-        fi
+If this Mac is managed by an employer or school, a management profile may block access. Ask your IT department." "stop"
+        exit 1
     fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Python virtual environment + packages  (all modes)
 # ─────────────────────────────────────────────────────────────────────────────
-# Python itself was already resolved in section 2.5. Here we build an isolated
-# venv for this tool's packages so we never modify the system site-packages.
+# An isolated venv holds this tool's packages so we never modify the system
+# site-packages. It is rebuilt when the tool version or the interpreter changes.
 
 ENV_DIR="$HOME/.imessage_forensic_sandbox"
-_TOOL_VERSION="10.0"
-# Rebuild venv if: corrupted, missing, or built by a different tool version.
-# This auto-heals stale sandboxes left by v1-v9 installs.
-_need_venv_rebuild=0
-if [ ! -d "$ENV_DIR" ]; then
-    _need_venv_rebuild=1
-elif ! "$ENV_DIR/bin/python3" -c "import sys" 2>/dev/null; then
-    _need_venv_rebuild=1
-elif [ "$(cat "$ENV_DIR/.toolversion" 2>/dev/null)" != "$_TOOL_VERSION" ]; then
-    _need_venv_rebuild=1
-fi
-if [ "$_need_venv_rebuild" -eq 1 ]; then
-    notify "Rebuilding Python environment (one-time)..."
+_TOOL_VERSION="10.1"
+_VENV_STAMP="${_TOOL_VERSION} ${PYTHON}"
+if [ ! -x "$ENV_DIR/bin/python3" ] \
+   || ! "$ENV_DIR/bin/python3" -c "import sys" 2>/dev/null \
+   || [ "$(cat "$ENV_DIR/.toolversion" 2>/dev/null)" != "$_VENV_STAMP" ]; then
+    notify "Setting up the Python environment (one time)..."
     echo "[*] Setting up Python environment for v${_TOOL_VERSION}..."
     rm -rf "$ENV_DIR"
-    "$PYTHON" -m venv "$ENV_DIR"
-    echo "$_TOOL_VERSION" > "$ENV_DIR/.toolversion"
+    if ! "$PYTHON" -m venv "$ENV_DIR"; then
+        rm -rf "$ENV_DIR"
+        alert "Couldn't set up the Python environment.
+
+The details are in the ${TERM_APP} window. Please ${RERUN_HINT}." "stop"
+        exit 1
+    fi
+    # Written last, so an interrupted build is redone next time.
+    echo "$_VENV_STAMP" > "$ENV_DIR/.toolversion"
 fi
 # shellcheck disable=SC1090
 source "$ENV_DIR/bin/activate"
 
-if ! python3 -c "import openpyxl, biplist" 2>/dev/null; then
-    alert "One-Time Setup (almost done)
-
-Installing Python packages — about 30 seconds." "note"
-    echo "[*] Installing required packages (one-time)..."
-    pip install openpyxl ccl-bplist biplist --quiet
+# openpyxl is optional: it only adds the .xlsx exports. The HTML report and CSVs
+# work without it, so a failed install (e.g. offline) is noted, not fatal, and
+# isn't retried on every run.
+if ! python3 -c "import openpyxl" 2>/dev/null && [ ! -f "$ENV_DIR/.openpyxl_unavailable" ]; then
+    echo "[*] Installing Excel export support (one time)..."
+    if python3 -m pip install --quiet --disable-pip-version-check openpyxl </dev/null; then
+        echo "[+] Excel export enabled."
+    else
+        touch "$ENV_DIR/.openpyxl_unavailable"
+        echo "[!] Couldn't install openpyxl (offline?). Excel (.xlsx) files will be skipped;"
+        echo "    the HTML report and CSV files are unaffected."
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1731,7 +1765,9 @@ if [[ "$MODE" == *"Fresh Extraction"* ]]; then
 
     OUT_DIR=$(cat "$OUTDIR_FILE" 2>/dev/null)
     if [ -z "$OUT_DIR" ] || [ ! -d "$OUT_DIR" ]; then
-        alert "Extraction failed.\n\nCheck the Terminal window for details." "stop"
+        alert "Extraction failed.
+
+Check the Terminal window for details." "stop"
         exit 1
     fi
 
@@ -1750,7 +1786,9 @@ elif [[ "$MODE" == *"Re-analyze"* ]]; then
 
     # Validate
     if ! python3 "$REORG_SCRIPT" validate "$CHOSEN_FOLDER" 2>/dev/null; then
-        alert "No usable data found in that folder.\n\nMake sure you select an iMsgForensic_ or Recovery_ folder that contains export.csv or export_raw.json." "stop"
+        alert "No usable data found in that folder.
+
+Make sure you select an iMsgForensic_ or Recovery_ folder that contains export.csv or export_raw.json." "stop"
         exit 1
     fi
 
@@ -1789,7 +1827,9 @@ elif [[ "$MODE" == *"Scan & Repair"* ]]; then
     FOLDER_COUNT=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$SCAN_JSON" 2>/dev/null || echo "0")
 
     if [ "$FOLDER_COUNT" = "0" ]; then
-        alert "No extraction folders found on your Desktop.\n\nRun a Fresh Extraction first to create some data." "note"
+        alert "No extraction folders found on your Desktop.
+
+Run a Fresh Extraction first to create some data." "note"
         exit 0
     fi
 
@@ -1978,7 +2018,7 @@ Ephemeral snaps that were not saved cannot be recovered." "note"
         alert "When your export files are ready and placed in:
 ~/Desktop/MessageExports/
 
-Re-launch this tool and choose 'Import from Other Apps' again to process them." "note"
+Then ${RERUN_HINT} and choose 'Import from Other Apps' to process them." "note"
     fi
 
     # Now process all available sources
@@ -2147,3 +2187,7 @@ ASIMPORT
     fi
 
 fi
+
+}
+
+main "$@"
