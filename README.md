@@ -702,8 +702,8 @@ This script asserts ten invariants across both copies:
 
 | # | Invariant | Checked in |
 |---|---|---|
-| 1 | Formula-injection guard defined (`_FORMULA_PFX`, `def _safe`) | `core.py`, `parser.py`, `merge.py` + CORE/PARSER/REORG heredocs |
-| 2 | Formula-injection guard applied (≥2 call sites of `_safe(`) | same as #1 |
+| 1 | Formula-injection guard defined (`_FORMULA_PFX`, `def _safe`) | `core.py`, `parser.py`, `merge.py`, `extractors/normalize.py` + CORE/PARSER/REORG/PLATFORM heredocs |
+| 2 | Formula-injection guard applied (`_safe(` appears at least twice: defined + called) | same as #1 |
 | 3 | SQLite table names SQL-quoted in CloudKit probe | `core.py` + CORE heredoc |
 | 4 | WAL carving has count + length caps (`50_000`, `2_000`) | `core.py` + CORE heredoc |
 | 5 | Symlink artifacts logged (`is_symlink`) | `core.py` + CORE heredoc |
@@ -729,6 +729,10 @@ invariant failed in which file. Run this after every security-relevant change.
    ```
 2. Implement the fix in both the standalone `.py` and the launcher heredoc.
 3. Re-run `python3 sync_check.py` to confirm both copies pass.
+
+Adding a new embedded module? Register its `*_PY_EOF` marker in
+`HEREDOC_MARKERS` (`sync_check.py`) and in `EXPECTED` (`verify.sh`). Both
+tools fail on an unregistered heredoc.
 
 ### Standalone CLI Usage
 
@@ -793,21 +797,31 @@ Before you commit, run from the repo root:
 ./verify.sh
 ```
 
-It aborts on the first failure of:
+It stops at the first failure of:
 
-1. `bash -n imessage_ultimate_launcher.command` — launcher bash is valid
-2. the embedded Python heredocs parse (`CORE/PARSER/REPORT/REORG/CK` markers)
-3. the main standalone modules parse (`core.py parser.py report.py merge.py cloudkit.py sync_check.py`)
-4. `python3 sync_check.py` — the drift guard's 10 invariants
+1. **Shell syntax:** `bash -n` on the launcher, `RESET.command`, `verify.sh` and `scripts/*.sh`
+2. **Line endings:** no CR (CRLF) in any tracked text file, and `.gitattributes` present
+3. **File modes:** every tracked `*.command` / `*.sh` is `100755` in git
+4. **Embedded Python:** all six `*_PY_EOF` heredocs are found. Each must parse
+   as Python 3.9 and use no 3.10+ runtime features (`X | Y` annotations,
+   `match`). The launcher runs them on Apple's Python 3.9, so keep them
+   3.9-compatible.
+5. **Standalone Python:** every tracked `*.py` parses
+6. **Drift guard:** `sync_check.py`
 
-**Not yet covered:** the `PLATFORM_PY_EOF` heredoc, `extractors/*.py`,
-`RESET.command`, `scripts/*.sh`, line endings, and file modes. On Windows
-(git-bash), run it as `PYTHONUTF8=1 ./verify.sh`, and make sure `python3` is a
-real Python rather than the Microsoft Store shortcut.
+It prints `ALL CHECKS PASSED` on success. These are static checks only. They
+don't run the tool or exercise macOS behavior, so launch-path changes still
+need a test on a real Mac.
 
-`sync_check.py` only checks the listed security invariants. It does not detect
-other logic drift between a standalone script and its heredoc. Keeping those in
-step is a manual job.
+It works on Linux, macOS and Windows git-bash. It picks the first working
+`python3`, `python` or `py -3` and skips the Windows Store shortcut; set
+`PYTHON=/path/to/python` to choose one. It runs Python in UTF-8 mode, so
+Windows console encodings don't matter.
+
+`sync_check.py` only checks the listed security invariants, plus a rule that
+every embedded heredoc is registered with it. It does not detect other logic
+drift between a standalone script and its heredoc; keeping those in step is a
+manual job.
 
 ### Building a Release
 
